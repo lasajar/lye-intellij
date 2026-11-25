@@ -1,0 +1,9 @@
+.gradle
+.idea
+.intellijPlatform
+build
+.kotlin
+*.iml
+out
+.DS_Store
+Thumbs.db

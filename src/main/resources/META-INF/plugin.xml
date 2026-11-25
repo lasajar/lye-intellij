@@ -1,0 +1,63 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>com.lasajar.lye</id>
+
+    <!-- Public plugin name should be written in Title Case.
+     Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
+    <name>Lye</name>
+
+    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <vendor url="https://github.com/lasajar">lasajar</vendor>
+
+    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
+         Simple HTML inside CDATA: <p>, <br>, <b>, <i>, <code>, <ul>/<ol>/<li>, <h2>/<h3>, <a href="...">link</a>.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
+    <description><![CDATA[
+        <p>LuaJIT-first language support powered by the <code>lye</code> language server.</p>
+        <ul>
+            <li>Lua file type, syntax highlighting and <b>New &rarr; Lua File</b> action</li>
+            <li>Language server features (completion, diagnostics, navigation) via <code>lye</code>, downloaded automatically from its <a href="https://github.com/lde-org/lye/releases/tag/nightly">nightly releases</a></li>
+            <li><code>lde</code> package support: tool window, run configurations and project view decorations</li>
+        </ul>
+        <p>Source code and issues: <a href="https://github.com/lasajar/lye-intellij">github.com/lasajar/lye-intellij</a></p>
+        ]]></description>
+
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.lsp</depends>
+
+    <!-- Extensions defined by the plugin.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- If the plugin is published on JetBrains Marketplace, errors reported by users are available on the plugin page.
+             See https://plugins.jetbrains.com/docs/marketplace/error-handler.html#developers-side for details. -->
+        <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
+        <fileType name="Lua" implementationClass="com.lasajar.lua.LuaFileType" fieldName="INSTANCE"
+                  language="Lua" extensions="lua"/>
+        <platform.lsp.integrationProvider implementation="com.lasajar.lsp.LyeLspIntegrationProvider"/>
+        <projectViewNodeDecorator implementation="com.lasajar.lde.LdePackageDecorator" />
+        <fileIconProvider implementation="com.lasajar.icons.LyeFileIconProvider" />
+        <lang.syntaxHighlighterFactory language="Lua" implementationClass="com.lasajar.lua.LuaSyntaxHighlighterFactory" />
+        <configurationType implementation="com.lasajar.lde.LdeConfigurationType"/>
+        <runConfigurationProducer implementation="com.lasajar.lde.LdeRunConfigurationProducer"/>
+        <postStartupActivity implementation="com.lasajar.lde.LdePackageStartup" />
+        <toolWindow id="lde" anchor="right" icon="com.lasajar.icons.LyeIcons.Lde" factoryClass="com.lasajar.lde.LdeToolWindowFactory" />
+        <internalFileTemplate name="Lua File"/>
+        <internalFileTemplate name="lde"/>
+    </extensions>
+
+    <actions>
+        <action id="Lye.NewLuaFile" class="com.lasajar.lua.NewLuaFileAction">
+            <add-to-group group-id="NewGroup" anchor="before" relative-to-action="NewFile"/>
+        </action>
+        <action id="Lye.NewLdeJson" class="com.lasajar.lde.NewLdeJsonAction">
+            <add-to-group group-id="NewGroup" anchor="after" relative-to-action="Lye.NewLuaFile"/>
+        </action>
+    </actions>
+
+    <projectListeners>
+        <listener class="com.lasajar.lde.LdeRunConfigurationSync" topic="com.lasajar.lde.LdePackageListener" />
+        <listener class="com.lasajar.lde.LdeJsonVfsListener" topic="com.intellij.openapi.vfs.newvfs.BulkFileListener" />
+    </projectListeners>
+</idea-plugin>

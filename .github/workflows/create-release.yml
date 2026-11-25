@@ -1,0 +1,82 @@
+# Creates a GitHub release (tag v<version>) when the version in gradle.properties changes on main,
+# then publishes it to JetBrains Marketplace through the Release workflow.
+# Release notes are taken from CHANGELOG.md. SNAPSHOT versions and versions that
+# already have a release are skipped; versions with a suffix (e.g. 1.2.0-beta.1) become pre-releases.
+#
+# Releases created with GITHUB_TOKEN do not trigger other workflows, so Release is called directly here.
+
+name: Create Release
+
+on:
+  push:
+    branches: [main]
+    paths: [gradle.properties]
+  workflow_dispatch:
+
+jobs:
+  create-release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      created: ${{ steps.release.outputs.created }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION="$(sed -n 's/^version=//p' gradle.properties | tr -d '[:space:]')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        id: release
+        if: ${{ !endsWith(steps.version.outputs.version, '-SNAPSHOT') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG already exists, skipping."
+            exit 0
+          fi
+
+          chmod +x ./gradlew
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          ./gradlew getChangelog -q --console=plain --no-header --no-empty-sections --project-version="$VERSION" > "$NOTES" \
+            || ./gradlew getChangelog -q --console=plain --no-header --no-empty-sections --unreleased > "$NOTES"
+
+          PRERELEASE=()
+          if [[ "$VERSION" == *-* ]]; then
+            PRERELEASE=(--prerelease)
+          fi
+
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --notes-file "$NOTES" "${PRERELEASE[@]}"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish
+    needs: create-release
+    if: needs.create-release.outputs.created == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.create-release.outputs.version }}
+      tag: ${{ needs.create-release.outputs.tag }}
+    secrets: inherit

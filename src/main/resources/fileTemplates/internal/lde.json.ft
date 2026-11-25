@@ -1,0 +1,7 @@
+{
+  "name": "",
+  "version": "0.1.0",
+  "dependencies": {
+  },
+  "$schema": "https://raw.githubusercontent.com/lde-org/lde/master/schemas/lde.schema.json"
+}

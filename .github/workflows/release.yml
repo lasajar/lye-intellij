@@ -1,0 +1,78 @@
+# Publishes the plugin to JetBrains Marketplace when a GitHub release is published,
+# or when called by the Create Release workflow.
+# The release tag (e.g. v1.2.0) determines the plugin version.
+#
+# Required repository secrets:
+#   PUBLISH_TOKEN         - JetBrains Marketplace permanent token
+#   CERTIFICATE_CHAIN     - plugin signing certificate chain (PEM)
+#   PRIVATE_KEY           - plugin signing private key (PEM)
+#   PRIVATE_KEY_PASSWORD  - password for PRIVATE_KEY
+#   VENDOR_EMAIL          - vendor contact email added to plugin.xml at build time
+
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Plugin version to publish (e.g. 1.2.0)
+        required: true
+  workflow_call:
+    inputs:
+      version:
+        description: Plugin version to publish (e.g. 1.2.0)
+        type: string
+        required: true
+      tag:
+        description: Release tag to attach the plugin archive to (e.g. v1.2.0)
+        type: string
+        required: false
+
+jobs:
+  release:
+    name: Publish to JetBrains Marketplace
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_TAG: ${{ inputs.tag }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${INPUT_VERSION:-$TAG_NAME}"
+          echo "version=${VERSION#v}" >> "$GITHUB_OUTPUT"
+          echo "tag=${INPUT_TAG:-$TAG_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish plugin
+        env:
+          PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
+          CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
+          VENDOR_EMAIL: ${{ secrets.VENDOR_EMAIL }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew publishPlugin -Pversion=${{ steps.version.outputs.version }}
+
+      - name: Upload release asset
+        if: steps.version.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ steps.version.outputs.tag }}" ./build/distributions/*.zip --clobber
